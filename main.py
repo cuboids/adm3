@@ -44,10 +44,10 @@ def jaccard_main():
     input_matrix = csr_matrix((umr[:, 2], (umr[:, 0], umr[:, 1]))).sign()
     signature_matrix = np.empty([SIGNATURE_LENGTH, input_matrix.shape[1]])
 
-    # Blocking
+    # Minhashing to fill the signature matrix
     ...
 
-    # Minhash block 1...B ?
+    # Banding the signature matrix
     ...
 
 
