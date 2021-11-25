@@ -10,13 +10,13 @@ from scipy.spatial import distance
 
 
 # Hyperparameters
-# Fixed
+#   Fixed
 JS_SIMILARITY_THRESHOLD = .5
 CS_SIMILARITY_THRESHOLD = .73
 DCS_SIMILARITY_THRESHOLD = .73
 SEED = 1
 
-# Tuneable
+#   Tuneable
 SIGNATURE_LENGTH = 128
 N_BANDS = 16
 
