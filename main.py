@@ -1,3 +1,4 @@
+from collections import defaultdict
 import itertools
 
 import numpy as np
@@ -63,13 +64,21 @@ def jaccard_main(toy=None):
         m = m[indices, :]
         signature_matrix[i, :] = m.argmax(0)
 
-    print(signature_matrix)
-    print(signature_matrix.shape)
-
-    ...
+    # print(signature_matrix)
+    # print(signature_matrix.shape)
 
     # Banding the signature matrix
     ...
+    hash_table = defaultdict(set)
+    bands = np.split(signature_matrix, N_BANDS)
+    temp = bands[0]
+
+    for i, column in enumerate(temp.T):
+        hash_table[tuple(column)].update([i])
+
+    for v in hash_table.values():
+        if len(v) > 1:
+            print(v)
 
 
 def cosine_main():
@@ -86,5 +95,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-    jaccard_main(10000)
-
+    jaccard_main(10000000)
