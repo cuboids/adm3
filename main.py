@@ -26,9 +26,9 @@ umr = np.load('user_movie_rating.npy')
 umr[:, :2] -= 1  # Ensure rows and columns start at 0
 assert umr.min() == 0
 
-# We'll probably directly use scipy.distance to reduce overhead
+-------------------------------------------------------------------------------------------
 
-
+# NOTE: We'll probably directly use scipy.distance to reduce overhead
 def jaccard_similarity(u1, u2):
     return distance.jaccard(u1, u2)
 
@@ -44,6 +44,8 @@ def cosine_similarity(u1, u2):
 # Same as cosine similarity, just with truncated u1 and u2
 def discrete_cosine_similarity(u1, u2):
     return distance.cosine(u1, u2)
+
+-------------------------------------------------------------------------------------------
 
 
 def jaccard_main(toy=None):
