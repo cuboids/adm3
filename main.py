@@ -20,7 +20,7 @@ def jaccard_similarity(u1, u2):
     return distance.jaccard(u1, u2)
 
 
-def test_jaccard_similarity(u1, u2)
+def test_jaccard_similarity(u1, u2):
     assert jaccard_similarity(u1, u2) == len(np.intersect1d(u1, u2))/len(np.union1d(u1, u2))
 
 
