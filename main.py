@@ -1,3 +1,10 @@
+from collections import defaultdict
+import itertools
+import time
+
+import numpy as np
+import numpy.random as npr
+from scipy.sparse import csr_matrix
 from scipy.spatial import distance
 
 
@@ -35,7 +42,7 @@ def discrete_cosine_similarity(u1, u2):
 
 
 def jaccard_main(toy=None, verbose=True):
-    """Find user pairs u1 and u2 such that JS(u1, u2) > JS_SIMILARITY_THRESHOLD
+    """Find user blocked_pairs u1 and u2 such that JS(u1, u2) > JS_SIMILARITY_THRESHOLD
 
     toy: reducing the data"""
 
@@ -45,6 +52,7 @@ def jaccard_main(toy=None, verbose=True):
     input_matrix = csr_matrix((umr[:toy, 2], (umr[:toy, 1], umr[:toy, 0]))).sign()
     signature_matrix = np.full(([SIGNATURE_LENGTH, input_matrix.shape[1]]), np.inf)
 
+    # TODO: parallelize
     rng = npr.default_rng(SEED)
     m = input_matrix.copy()
     indices = list(range(input_matrix.shape[0]))
@@ -52,6 +60,7 @@ def jaccard_main(toy=None, verbose=True):
         rng.shuffle(indices)
         m = m[indices, :]
         signature_matrix[i, :] = m.argmax(0)
+    s = signature_matrix.copy()
     t1 = time.time()
     if verbose:
         print(f'minhashing time: {t1-t0:.2f}')
@@ -59,42 +68,39 @@ def jaccard_main(toy=None, verbose=True):
     # Banding the signature matrix
     hash_buckets = defaultdict(set)
     bands = np.split(signature_matrix, N_BANDS)
-    temp = bands[0]
 
-    for band in range(N_BANDS):
-        for user, column in enumerate(temp.T):
-            hash_buckets[(band,) + tuple(column)].add(user)
+    for i, band in enumerate(bands):
+        for user, column in enumerate(band.T):
+            hash_buckets[(i,) + tuple(column)].add(user)
     # We only care about the buckets with at least two users
     hash_buckets = set(tuple(sorted(v)) for v in hash_buckets.values() if len(v) > 1)
 
     # Empty hash_buckets
-    pairs = set()
+    blocked_pairs = set()
     for bucket in hash_buckets:
         for pair in itertools.combinations(bucket, 2):
-            pairs.add(pair)
+            blocked_pairs.add(pair)
 
-    # Apply JS distance
-    # TODO: parallellize
+    # Calculate signature similarity
+    # TODO: parallelize
     t2 = time.time()
-    t21 = time.time()
-    if verbose:
-        print(f'number of pairs: {len(pairs)}')
-    similar_users = set()
-    for i, (u1, u2) in enumerate(pairs):
-        if verbose and i % 5000 == 0 and i > 0:
-            t22 = time.time()
-            print(f'{i} pairs checked (time = {t22-t21:.2f})')
-            t21 = time.time()
+    candidate_pairs = set()
+    for u1, u2 in blocked_pairs:
+        if np.sum(s[:, u1] == s[:, u2])/SIGNATURE_LENGTH >= JS_SIMILARITY_THRESHOLD:
+            candidate_pairs.add((u1, u2))
+
+    # Calculate JS
+    pairs = set()
+    for u1, u2 in candidate_pairs:
         intersection = (m1 := m.getcol(u1)).T.dot((m2 := m.getcol(u2)))[0, 0]
         union = m1.sum() + m2.sum() - intersection
-        if (d := intersection/union) >= JS_SIMILARITY_THRESHOLD:
-            similar_users.add((u1, u2))
+        if (d := intersection / union) >= JS_SIMILARITY_THRESHOLD:
+            pairs.add((u1, u2))
     t3 = time.time()
     if verbose:
         print(f'JS calculation time: {(t3-t2):.2f}')
-        print()
 
-    print(f'Number of similar users found: {len(similar_users)}')
+    print(len(pairs))
 
     # TODO: Update result.txt if > .5
 
@@ -117,5 +123,5 @@ if __name__ == '__main__':
 
 
 # Output for with toy=None:
-# >>> minhashing time: ???.??
-# >>> JS calculation time: ????.??
+# >>> minhashing time: 159.16
+# >>> JS calculation time: fast
