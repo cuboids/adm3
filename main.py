@@ -16,8 +16,8 @@ DCS_SIMILARITY_THRESHOLD = .73
 SEED = 1
 
 # Tuneable
-SIGNATURE_LENGTH = 128
-N_BANDS = 16
+SIGNATURE_LENGTH = 256
+N_BANDS = 32
 
 
 # TODO: allow fp to be specified by flag
@@ -80,13 +80,13 @@ def jaccard_main(toy=None, verbose=True):
             pairs.add(pair)
 
     # Apply JS distance
+    # TODO: parallellize
     t2 = time.time()
     similar_users = set()
     for u1, u2 in pairs:
         intersection = (m1 := m.getcol(u1)).T.dot((m2 := m.getcol(u2)))[0, 0]
-        union = m1.sum() + m2.sum() - 2 * intersection
+        union = m1.sum() + m2.sum() - intersection
         if (d := intersection/union) >= JS_SIMILARITY_THRESHOLD:
-            print((u1, u2))
             similar_users.add((u1, u2))
     t3 = time.time()
     if verbose:
@@ -115,6 +115,6 @@ if __name__ == '__main__':
     jaccard_main()
 
 
-# Output for with toy=None:
-# >>> minhashing time: 158.41
-# >>> JS calculation time: 1300.55
+# Output (toy=None):
+# >>> minhashing time: ???
+# >>> JS calculation time: ???
