@@ -27,6 +27,10 @@ assert umr.min() == 0
 input_matrix = None
 
 
+# TODO: make toy dataset for hyperpar tuning
+# TODO: write grid search routine on toy dataset
+
+
 def cosine_similarity(u1, u2):
     return distance.cosine(u1, u2)
 
@@ -59,7 +63,6 @@ def jaccard_main(toy=None, verbose=True):
         print(f'minhashing time: {t1-t0:.2f}')
 
     # Banding the signature matrix
-    t2 = time.time()
     hash_buckets = defaultdict(set)
     bands = np.split(signature_matrix, N_BANDS)
     temp = bands[0]
@@ -69,35 +72,30 @@ def jaccard_main(toy=None, verbose=True):
             hash_buckets[(band,) + tuple(column)].add(user)
     # We only care about the buckets with at least two users
     hash_buckets = set(tuple(sorted(v)) for v in hash_buckets.values() if len(v) > 1)
-    t3 = time.time()
-    if verbose:
-        print(f'banding time: {(t3-t2):.2f}')
 
     # Empty hash_buckets
-    t4 = time.time()
     pairs = set()
     for bucket in hash_buckets:
         for pair in itertools.combinations(bucket, 2):
             pairs.add(pair)
-    t5 = time.time()
-    if verbose:
-        print(f'emptying time: {(t5-t4):.2f}')
 
-    # Apply JS distance and update result.txt if > .5
-    t6 = time.time()
-
+    # Apply JS distance
+    t2 = time.time()
     similar_users = set()
     for u1, u2 in pairs:
         intersection = (m1 := m.getcol(u1)).T.dot((m2 := m.getcol(u2)))[0, 0]
-        union = m1.sum() + m2.sum() - intersection
-        if (d := intersection/union) > JS_SIMILARITY_THRESHOLD:
+        union = m1.sum() + m2.sum() - 2 * intersection
+        if (d := intersection/union) >= JS_SIMILARITY_THRESHOLD:
+            print((u1, u2))
             similar_users.add((u1, u2))
-    t7 = time.time()
+    t3 = time.time()
     if verbose:
-        print(f'JS calculation time: {(t7-t6):.2f}')
+        print(f'JS calculation time: {(t3-t2):.2f}')
         print()
 
     print(f'Number of similar users found: {len(similar_users)}')
+
+    # TODO: Update result.txt if > .5
 
 
 def cosine_main():
@@ -118,7 +116,5 @@ if __name__ == '__main__':
 
 
 # Output for with toy=None:
-# >>> minhashing time: 161.89
-# >>> banding time: 3.86
-# >>> emptying time: 0.26
-# >>> JS calculation time: 233.55
+# >>> minhashing time: 158.41
+# >>> JS calculation time: 1300.55
