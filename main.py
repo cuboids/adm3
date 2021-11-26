@@ -117,5 +117,5 @@ if __name__ == '__main__':
 
 
 # Output for with toy=None:
-# >>> minhashing time: 162.99
-# >>> JS calculation time: 1300.55
+# >>> minhashing time: ???.??
+# >>> JS calculation time: ????.??
