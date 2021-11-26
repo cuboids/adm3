@@ -1,10 +1,3 @@
-from collections import defaultdict
-import itertools
-import time
-
-import numpy as np
-import numpy.random as npr
-from scipy.sparse import csr_matrix
 from scipy.spatial import distance
 
 
@@ -16,8 +9,9 @@ DCS_SIMILARITY_THRESHOLD = .73
 SEED = 1
 
 # Tuneable
-SIGNATURE_LENGTH = 256
-N_BANDS = 32
+SIGNATURE_LENGTH = 128
+N_ROWS_PER_BAND = 8
+N_BANDS = SIGNATURE_LENGTH // N_ROWS_PER_BAND
 
 
 # TODO: allow fp to be specified by flag
@@ -82,8 +76,15 @@ def jaccard_main(toy=None, verbose=True):
     # Apply JS distance
     # TODO: parallellize
     t2 = time.time()
+    t21 = time.time()
+    if verbose:
+        print(f'number of pairs: {len(pairs)}')
     similar_users = set()
-    for u1, u2 in pairs:
+    for i, (u1, u2) in enumerate(pairs):
+        if verbose and i % 5000 == 0 and i > 0:
+            t22 = time.time()
+            print(f'{i} pairs checked (time = {t22-t21:.2f})')
+            t21 = time.time()
         intersection = (m1 := m.getcol(u1)).T.dot((m2 := m.getcol(u2)))[0, 0]
         union = m1.sum() + m2.sum() - intersection
         if (d := intersection/union) >= JS_SIMILARITY_THRESHOLD:
@@ -115,6 +116,6 @@ if __name__ == '__main__':
     jaccard_main()
 
 
-# Output (toy=None):
-# >>> minhashing time: ???
-# >>> JS calculation time: ???
+# Output for with toy=None:
+# >>> minhashing time: 162.99
+# >>> JS calculation time: 1300.55
