@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-d', help='data file path')
 parser.add_argument('-s', type=int, help='random seed')
 parser.add_argument('-m', help='similarity measure ("js", "cs", or "dcs")')
+parser.add_argument('-v', type=bool, help='verbose')
 args = parser.parse_args()
 
 
@@ -28,14 +29,13 @@ class LSH:
     _SIGNATURE_LENGTH = 256
     _N_ROWS_PER_BAND = 16
 
-    _VERBOSE = True
-
-    def __init__(self, fp, seed, similarity_measure):
+    def __init__(self, fp, seed, similarity_measure, verbose=False):
         # TODO: allow fp to be specified by flag
 
         self._fp = fp
         self._seed = seed
         self._similarity_measure = similarity_measure
+        self._verbose = verbose
 
         try:
             self._umr = np.load(fp)
@@ -99,7 +99,7 @@ class LSH:
         assert np.isfinite(signature_matrix.all())
         t1 = time.time()
 
-        if self._VERBOSE:
+        if self._verbose:
             print(f'minhashing time: {t1 - t0:.2f}')
 
         blocked_pairs = self._compute_blocked_pairs(signature_matrix)
@@ -122,7 +122,7 @@ class LSH:
             if intersection / union >= self._JS_THRESHOLD:
                 pairs.add((u1, u2))
         t3 = time.time()
-        if self._VERBOSE:
+        if self._verbose:
             print(f'JS calculation time: {t3 - t2:.2f}')
             print(f'Number of pairs found: {len(pairs)}')
 
@@ -152,13 +152,11 @@ class LSH:
         threshold = self._DCS_THRESHOLD if discrete else self._CS_THRESHOLD
 
         # Create random matrix with SIGNATURE_LENGTH random hyperplanes
-        # We chose random normal hyperplanes rather than -1/+1 as it
-        # doesn't affect performance too badly.
         hyperplanes = 2 * rng.integers(2, size=(m.shape[0], self._SIGNATURE_LENGTH)) - 1
         signature_matrix = s = np.sign(m.T.dot(hyperplanes)).T
 
         t1 = time.time()
-        if self._VERBOSE:
+        if self._verbose:
             print(f'Signature calculation time: {t1 - t0:.2f}')
 
         blocked_pairs = self._compute_blocked_pairs(signature_matrix)
@@ -170,7 +168,7 @@ class LSH:
         t2 = time.time()
         candidate_pairs = set()
         for u1, u2 in blocked_pairs:
-            if np.sum(s[:, u1] == s[:, u2]) / self._SIGNATURE_LENGTH >= self._JS_THRESHOLD:
+            if np.sum(s[:, u1] == s[:, u2]) / self._SIGNATURE_LENGTH >= self._CS_THRESHOLD:
                 candidate_pairs.add((u1, u2))
 
         # Postprocessing: Calculate actual cosine distance for the candidate pairs
@@ -180,32 +178,29 @@ class LSH:
             if cos_sim >= threshold:
                 pairs.add((u1, u2))
         t3 = time.time()
-        if self._VERBOSE:
+        if self._verbose:
             print(f'(D)CS calculation time: {t3 - t2:.2f}')
             print(f'Number of pairs found: {len(pairs)}')
 
     def main(self):
-        self._cosine_main(discrete=True)
+        self._cosine_main(discrete=False)
 
 
-def main(fp=None, seed=None, similarity_measure=None):
+def main(fp=None, seed=None, similarity_measure=None, verbose=False):
 
     # Setting defaults
     fp = fp if fp is not None else 'user_movie_rating.npy'
     seed = seed if seed is not None else 0
     similarity_measure = similarity_measure if similarity_measure is not None else 'js'
 
-    lsh = LSH(fp, seed, similarity_measure)
+    lsh = LSH(fp, seed, similarity_measure, verbose)
     lsh.main()
 
 
 if __name__ == '__main__':
-    main(*vars(args).values())
+    params = vars(args)
+    main(params['d'], params['s'], params['m'], params['v'])
 
-
-# Output for with toy=None:
-# >>> minhashing time: ~159.16
-# >>> JS calculation time: fast!
 
 # Console script to manipulate signature matrix in console
 """
@@ -228,3 +223,4 @@ hyperplanes = 2 * rng.integers(2, size=(m.shape[0], SIGNATURE_LENGTH)) - 1
 s = m.T.dot(hyperplanes)
 print(s)
 """
+
