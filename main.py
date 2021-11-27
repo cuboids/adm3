@@ -25,12 +25,12 @@ class LSH:
     _CS_THRESHOLD = .73
     _DCS_THRESHOLD = .73
 
-    _SIGNATURE_LENGTH = 280
-    _N_ROWS_PER_BAND = 14
+    _SIGNATURE_LENGTH = 256
+    _N_ROWS_PER_BAND = 16
 
     _VERBOSE = True
 
-    def __init__(self, fp, seed=0, similarity_measure='js'):
+    def __init__(self, fp, seed, similarity_measure):
         # TODO: allow fp to be specified by flag
 
         self._fp = fp
