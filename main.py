@@ -3,20 +3,21 @@ import itertools
 import time
 
 import numpy as np
+import numpy.linalg
 import numpy.random as npr
 from scipy.sparse import csr_matrix
 from scipy.spatial import distance
 
 
 class LSH:
-    """Implementation of LSH for the Netflix Challenge data"""
+    """Implementation of Locality Sensitive Hashing for the Netflix Challenge data"""
 
     _JS_THRESHOLD = .5
     _CS_THRESHOLD = .73
     _DCS_THRESHOLD = .73
 
-    _SIGNATURE_LENGTH = 140
-    _N_ROWS_PER_BAND = 14
+    _SIGNATURE_LENGTH = 256
+    _N_ROWS_PER_BAND = 16
 
     def __init__(self, fp, seed=0):
         # TODO: allow fp to be specified by flag
@@ -115,17 +116,31 @@ class LSH:
 
         # TODO: Update result.txt for each pair in pairs
 
-    def _cosine_main(self, verbose=True):
-        # WARNING: not working correctly yet.
-        # Possible factor scipy.distance is not suitable.
+    @staticmethod
+    def _cosine_similarity(v, w, sparse_columns=False):
+
+        # Sparse dot products require "unpacking" the resulting scalar value
+        dot_product = v.T.dot(w)[0, 0] if sparse_columns else v.T.dot(w)
+        return 1 - np.arccos(dot_product / np.linalg.norm(v) / np.linalg.norm(w)) / np.pi
+
+    def _cosine_main(self, verbose=True, use_dsc=False):
+        """Find user pairs u1, u2 such that CS(u1, u2) < CS_THRESHOLD or DSC(u1, u2) < DCS_THRESHOLD
+
+        Args:
+            verbose: print intermediate computation time
+            use_dsc: use DSC instead of SC
+        """
+        
+        # TODO: NOT YET FINDING PAIRS!
 
         t0 = time.time()
 
         # Use random hyperplanes to create signatures
         rng = npr.default_rng(self._seed)
-        m = self._input_matrix.copy()
+        m = self._input_matrix_truncated.copy() if use_dsc else self._input_matrix.copy()
+        threshold = self._DCS_THRESHOLD if use_dsc else self._CS_THRESHOLD
 
-        # Create random matrix
+        # Create random matrix with SIGNATURE_LENGTH random hyperplanes
         hyperplanes = 2 * rng.integers(2, size=(m.shape[0], self._SIGNATURE_LENGTH)) - 1
         signature_matrix = s = np.sign(m.T.dot(hyperplanes)).T
 
@@ -142,17 +157,19 @@ class LSH:
         t2 = time.time()
         candidate_pairs = set()
         for u1, u2 in blocked_pairs:
-            if 1 - distance.cosine(s[:, u1], s[:, u2]) >= self._CS_THRESHOLD:
+            cos_sim = self._cosine_similarity(s[:, u1], s[:, u2])
+            if cos_sim >= threshold:
                 candidate_pairs.add((u1, u2))
 
-        # Calculate the actual cosine distance for the candidate pairs
+        # Postprocessing: Calculate actual cosine distance for the candidate pairs
         pairs = set()
         for u1, u2 in candidate_pairs:
-            if 1 - distance.cosine(m.getcol(u1).toarray(), m.getcol(u2).toarray()) >= self._CS_THRESHOLD:
+            cos_sim = self._cosine_similarity(m.getcol(u1).toarray(), m.getcol(u2).toarray(), sparse_columns=True)
+            if cos_sim >= threshold:
                 pairs.add((u1, u2))
         t3 = time.time()
         if verbose:
-            print(f'JS calculation time: {t3 - t2:.2f}')
+            print(f'(D)CS calculation time: {t3 - t2:.2f}')
             print(f'Number of pairs found: {len(pairs)}')
 
     def main(self):
