@@ -1,3 +1,4 @@
+import argparse
 from collections import defaultdict
 import itertools
 import time
@@ -9,6 +10,14 @@ from scipy.sparse import csr_matrix
 from scipy.spatial import distance
 
 
+# Process command line options
+parser = argparse.ArgumentParser()
+parser.add_argument('-d', help='data file path')
+parser.add_argument('-s', type=int, help='random seed')
+parser.add_argument('-m', help='similarity measure ("js", "cs", or "dcs")')
+args = parser.parse_args()
+
+
 class LSH:
     """Implementation of Locality Sensitive Hashing for the Netflix Challenge data"""
 
@@ -16,14 +25,17 @@ class LSH:
     _CS_THRESHOLD = .73
     _DCS_THRESHOLD = .73
 
-    _SIGNATURE_LENGTH = 256
-    _N_ROWS_PER_BAND = 16
+    _SIGNATURE_LENGTH = 280
+    _N_ROWS_PER_BAND = 14
 
-    def __init__(self, fp, seed=0):
+    _VERBOSE = True
+
+    def __init__(self, fp, seed=0, similarity_measure='js'):
         # TODO: allow fp to be specified by flag
 
         self._fp = fp
         self._seed = seed
+        self._similarity_measure = similarity_measure
 
         try:
             self._umr = np.load(fp)
@@ -67,7 +79,7 @@ class LSH:
 
         return blocked_pairs
 
-    def _jaccard_main(self, verbose=True):
+    def _jaccard_main(self):
         """Find user pairs (u1, u2) such that JS(u1, u2) < JS_THRESHOLD"""
 
         t0 = time.time()
@@ -87,7 +99,7 @@ class LSH:
         assert np.isfinite(signature_matrix.all())
         t1 = time.time()
 
-        if verbose:
+        if self._VERBOSE:
             print(f'minhashing time: {t1 - t0:.2f}')
 
         blocked_pairs = self._compute_blocked_pairs(signature_matrix)
@@ -110,7 +122,7 @@ class LSH:
             if intersection / union >= self._JS_THRESHOLD:
                 pairs.add((u1, u2))
         t3 = time.time()
-        if verbose:
+        if self._VERBOSE:
             print(f'JS calculation time: {t3 - t2:.2f}')
             print(f'Number of pairs found: {len(pairs)}')
 
@@ -123,29 +135,30 @@ class LSH:
         dot_product = v.T.dot(w)[0, 0] if sparse_columns else v.T.dot(w)
         return 1 - np.arccos(dot_product / np.linalg.norm(v) / np.linalg.norm(w)) / np.pi
 
-    def _cosine_main(self, verbose=True, use_dsc=False):
+    def _cosine_main(self, discrete=False):
         """Find user pairs u1, u2 such that CS(u1, u2) < CS_THRESHOLD or DSC(u1, u2) < DCS_THRESHOLD
 
         Args:
-            verbose: print intermediate computation time
-            use_dsc: use DSC instead of SC
+            discrete: use DSC instead of SC
         """
-        
+
         # TODO: NOT YET FINDING PAIRS!
 
         t0 = time.time()
 
         # Use random hyperplanes to create signatures
         rng = npr.default_rng(self._seed)
-        m = self._input_matrix_truncated.copy() if use_dsc else self._input_matrix.copy()
-        threshold = self._DCS_THRESHOLD if use_dsc else self._CS_THRESHOLD
+        m = self._input_matrix_truncated.copy() if discrete else self._input_matrix.copy()
+        threshold = self._DCS_THRESHOLD if discrete else self._CS_THRESHOLD
 
         # Create random matrix with SIGNATURE_LENGTH random hyperplanes
+        # We chose random normal hyperplanes rather than -1/+1 as it
+        # doesn't affect performance too badly.
         hyperplanes = 2 * rng.integers(2, size=(m.shape[0], self._SIGNATURE_LENGTH)) - 1
         signature_matrix = s = np.sign(m.T.dot(hyperplanes)).T
 
         t1 = time.time()
-        if verbose:
+        if self._VERBOSE:
             print(f'Signature calculation time: {t1 - t0:.2f}')
 
         blocked_pairs = self._compute_blocked_pairs(signature_matrix)
@@ -157,8 +170,7 @@ class LSH:
         t2 = time.time()
         candidate_pairs = set()
         for u1, u2 in blocked_pairs:
-            cos_sim = self._cosine_similarity(s[:, u1], s[:, u2])
-            if cos_sim >= threshold:
+            if np.sum(s[:, u1] == s[:, u2]) / self._SIGNATURE_LENGTH >= self._JS_THRESHOLD:
                 candidate_pairs.add((u1, u2))
 
         # Postprocessing: Calculate actual cosine distance for the candidate pairs
@@ -168,21 +180,27 @@ class LSH:
             if cos_sim >= threshold:
                 pairs.add((u1, u2))
         t3 = time.time()
-        if verbose:
+        if self._VERBOSE:
             print(f'(D)CS calculation time: {t3 - t2:.2f}')
             print(f'Number of pairs found: {len(pairs)}')
 
     def main(self):
-        self._cosine_main()
+        self._cosine_main(discrete=True)
 
 
-def main():
-    lsh = LSH('user_movie_rating.npy')
+def main(fp=None, seed=None, similarity_measure=None):
+
+    # Setting defaults
+    fp = fp if fp is not None else 'user_movie_rating.npy'
+    seed = seed if seed is not None else 0
+    similarity_measure = similarity_measure if similarity_measure is not None else 'js'
+
+    lsh = LSH(fp, seed, similarity_measure)
     lsh.main()
 
 
 if __name__ == '__main__':
-    main()
+    main(*vars(args).values())
 
 
 # Output for with toy=None:
