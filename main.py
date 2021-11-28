@@ -6,8 +6,7 @@ import time
 import numpy as np
 import numpy.linalg
 import numpy.random as npr
-from scipy.spatial import distance
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, csc_matrix
 
 
 # Process command line options
@@ -34,10 +33,10 @@ class LSH:
 
     # Hyperparameters
     THRESHOLDS = {'js': .5, 'cs': .73, 'dcs': .73}
-    SIGNATURE_LENGTHS = {'js': 224, 'cs': 240, 'dcs': 240}
+    SIGNATURE_LENGTHS = {'js': 224, 'cs': 320, 'dcs': 320}
     ROWS_PER_BAND = {'js': 7, 'cs': 16, 'dcs': 16}
-    BANDS = {'js': 32, 'cs': 15, 'dcs': 15}
-    THRESHOLD_EASING = {'js': .025, 'cs': .06, 'dcs': .06}
+    BANDS = {'js': 32, 'cs': 20, 'dcs': 20}
+    THRESHOLD_EASING = {'js': .025, 'cs': .065, 'dcs': .065}
 
     def __init__(self, fp, seed, similarity_measure, verbose=False):
 
@@ -56,7 +55,7 @@ class LSH:
         self._umr[:, :2] -= 1  # Ensure rows and columns start at 0
         assert self._umr.min() == 0
 
-        self._input_matrix = csr_matrix((self._umr[:, 2], (self._umr[:, 1], self._umr[:, 0])))
+        self._input_matrix = csc_matrix((self._umr[:, 2], (self._umr[:, 1], self._umr[:, 0])))
         self._input_matrix_truncated = self._input_matrix.sign()
 
         # Initialize output containers
@@ -183,7 +182,9 @@ class LSH:
 
         # Postprocessing: Calculate actual cosine distance for the candidate pairs
         for u1, u2 in candidate_pairs:
-            cos_sim = self._cosine_similarity(m.getcol(u1).toarray(), m.getcol(u2).toarray(), sparse_columns=True)
+            # Calculating (discrete) cosine similarity in-place greatly speeds up computations.
+            dot_product = (m1 := m.getcol(u1).toarray()).T.dot((m2 := m.getcol(u2).toarray()))[0, 0]
+            cos_sim = 1 - np.arccos(dot_product / np.linalg.norm(m1) / np.linalg.norm(m2)) / np.pi
             if cos_sim >= self.THRESHOLDS[self._sim]:
                 self.pairs[self._sim].add((u1, u2))
         t3 = time.time()
@@ -194,12 +195,15 @@ class LSH:
     def _write_results(self):
         with open(self._sim + '.txt', 'w') as f:
             for u1, u2 in sorted(self.pairs[self._sim]):
-                f.write(f'{u1}, {u2}\n')
+                # Very important, the actual user numbers are u1 + 1 and u2 + 2.
+                # This is because in the original dataset, user numbers start
+                # from 0 and not 1.
+                f.write(f'{u1 + 1}, {u2 + 1}\n')
 
     def main(self):
         if self._sim == 'cs':
             self._cosine_main(discrete=False)
-        elif self._sim == 'dsc':
+        elif self._sim == 'dcs':
             self._cosine_main(discrete=True)
         elif self._sim == 'js':
             self._jaccard_main()
@@ -210,7 +214,6 @@ if __name__ == '__main__':
     params = vars(args)
     np.random.seed(params['s'])
     main(params['d'], params['s'], params['m'], params['v'])
-
 
 # Hyperpar block ( @15:50)
 # THRESHOLDS = {'js': .5, 'cs': .73, 'dcs': .73}
