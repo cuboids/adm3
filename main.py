@@ -6,6 +6,7 @@ import time
 import numpy as np
 import numpy.linalg
 import numpy.random as npr
+from scipy.spatial import distance
 from scipy.sparse import csr_matrix
 
 
@@ -22,7 +23,6 @@ def main(fp=None, seed=None, similarity_measure=None, verbose=False):
 
     # Setting defaults
     fp = fp if fp is not None else 'user_movie_rating.npy'
-    seed = seed if seed is not None else 0
     similarity_measure = similarity_measure if similarity_measure is not None else 'js'
 
     lsh = LSH(fp, seed, similarity_measure, verbose)
@@ -34,16 +34,16 @@ class LSH:
 
     # Hyperparameters
     THRESHOLDS = {'js': .5, 'cs': .73, 'dcs': .73}
-    SIGNATURE_LENGTHS = {'js': 256, 'cs': 320, 'dcs': 320}
-    ROWS_PER_BAND = {'js': 8, 'cs': 16, 'dcs': 16}
-    BANDS = {'js': 32, 'cs': 20, 'dcs': 20}
-    THRESHOLD_EASING = {'js': .01, 'cs': .065, 'dcs': .065}
+    SIGNATURE_LENGTHS = {'js': 224, 'cs': 240, 'dcs': 240}
+    ROWS_PER_BAND = {'js': 7, 'cs': 16, 'dcs': 16}
+    BANDS = {'js': 32, 'cs': 15, 'dcs': 15}
+    THRESHOLD_EASING = {'js': .025, 'cs': .06, 'dcs': .06}
 
     def __init__(self, fp, seed, similarity_measure, verbose=False):
 
         self._fp = fp
         self._seed = seed
-        self._sim = similarity_measure
+        self._sim = similarity_measure.casefold()
         self._verbose = verbose
 
         assert self._sim in ['js', 'cs', 'dcs']
@@ -51,8 +51,7 @@ class LSH:
         try:
             self._umr = np.load(fp)
         except FileNotFoundError:
-            # download from URL
-            pass
+            self._umr = np.load(fp.split('/')[1])
 
         self._umr[:, :2] -= 1  # Ensure rows and columns start at 0
         assert self._umr.min() == 0
@@ -132,6 +131,7 @@ class LSH:
             if intersection / union >= self.THRESHOLDS['js']:
                 self.pairs['js'].add((u1, u2))
         t3 = time.time()
+
         if self._verbose:
             print(f'JS calculation time: {t3 - t2:.2f}')
             print(f'Number of pairs found: {len(self.pairs["js"])}')
@@ -180,6 +180,7 @@ class LSH:
 
         if self._verbose:
             print(f'number of candidate pairs: {len(candidate_pairs)}')
+
         # Postprocessing: Calculate actual cosine distance for the candidate pairs
         for u1, u2 in candidate_pairs:
             cos_sim = self._cosine_similarity(m.getcol(u1).toarray(), m.getcol(u2).toarray(), sparse_columns=True)
@@ -191,10 +192,9 @@ class LSH:
             print(f'Number of pairs found: {len(self.pairs[self._sim])}')
 
     def _write_results(self):
-        with open(self._sim + '.txt') as f:
+        with open(self._sim + '.txt', 'w') as f:
             for u1, u2 in sorted(self.pairs[self._sim]):
-                f.write(f'{u1}, {u2}')
-        pass
+                f.write(f'{u1}, {u2}\n')
 
     def main(self):
         if self._sim == 'cs':
@@ -208,4 +208,13 @@ class LSH:
 
 if __name__ == '__main__':
     params = vars(args)
+    np.random.seed(params['s'])
     main(params['d'], params['s'], params['m'], params['v'])
+
+
+# Hyperpar block ( @15:50)
+# THRESHOLDS = {'js': .5, 'cs': .73, 'dcs': .73}
+# SIGNATURE_LENGTHS = {'js': 256, 'cs': 320, 'dcs': 320}
+# ROWS_PER_BAND = {'js': 8, 'cs': 16, 'dcs': 16}
+# BANDS = {'js': 32, 'cs': 20, 'dcs': 20}
+# THRESHOLD_EASING = {'js': .025, 'cs': .065, 'dcs': .065}
