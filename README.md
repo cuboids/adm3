@@ -1,8 +1,7 @@
-# adm2
-Advances in Data Mining 2
+# adm3
+Advances in Data Mining 3
 
-We will use the [CSR](https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html) matrix. Why? 'Cause the [pro implementation](https://github.com/brandonrobertz/SparseLSH/blob/main/sparselsh/lsh.py) of LSH uses it.
+Let's find some exoplanets. Pictured below: 55 Cancri e, a super earth so hot it's surface is all molten lava.
 
-The [plot below](https://www.wolframalpha.com/input/?i=1205+*+%281+-+%281-.5%5Ex%29%5E%28128%2Fx%29%29+for+2+%3C+x+%3C+16) plots how many user pairs we are expected to find if we set N_SIGNATURES = 128 and x = N_ROWS_PER_BAND. It seems 16 bands and 8 rows per band might be okayish.. hopefully the buckets won't get too big otherwise we'll have performance issues.
 
-![image](https://user-images.githubusercontent.com/44651818/143565102-5be2819c-240f-486c-a4e0-46ec831bd9fa.png)
+![55 cancri e](https://user-images.githubusercontent.com/44651818/144745366-d7548128-e595-4f40-8972-f24b6f97a0d2.jpeg)
