@@ -26,8 +26,8 @@ Steps:
 
 import numpy as np
 import pandas as pd
-from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
 import xgboost
 
 
