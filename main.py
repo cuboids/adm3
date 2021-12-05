@@ -5,7 +5,14 @@ Steps:
 
 * basic data cleanup
 
-* target = disposition using kepler data
+* target = "disposition using kepler data"
+  code target as 0/1
+
+* Calibration/validation split
+
+* Scaling?
+
+* Train/test split of calibration set
 
 * SVM
 
