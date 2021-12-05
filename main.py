@@ -1,9 +1,3 @@
-import numpy as np
-import pandas as pd
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier
-import xgboost
-
 """
 Steps:
 
@@ -22,6 +16,13 @@ Steps:
 * Dimension reduction and data viz
 
 """
+
+import numpy as np
+import pandas as pd
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+import xgboost
+
 
 pass
 
