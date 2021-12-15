@@ -19,7 +19,13 @@ import numpy as np
 import pandas as pd; pd.set_option('display.max_columns', None)
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn import preprocessing
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer
+from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
 from sklearn.svm import SVC
 import xgboost
 
@@ -85,6 +91,9 @@ def basic_data_clean_up(raw: pd.DataFrame, cols: Optional[list[str]] = None) -> 
     # Make sure that planet names are unique
     assert len(df['kepoi_name']) == len(set(df['kepoi_name']))
 
+    # Set planet name as row index
+    df = df.set_index('kepoi_name')
+
     # Filter out exoplanet candidates
     df = df[df['koi_disposition'] != 'CANDIDATE']
 
@@ -93,16 +102,60 @@ def basic_data_clean_up(raw: pd.DataFrame, cols: Optional[list[str]] = None) -> 
 
     # Code the target variable as binary
     df['y'] = [int(b) for b in df['koi_disposition'] == 'CONFIRMED']
+    df = df.drop('koi_disposition', axis=1)
 
     return df
 
 
+def split_df(df: pd.DataFrame, test_size=.3) -> tuple[pd.DataFrame]:
+    """"""
+
+    X, y = df.drop('y', axis=1).to_numpy(), df['y'].to_numpy()
+    return train_test_split(X, y, test_size=test_size, random_state=0)
+
+
+def split_into_folds(df: pd.DataFrame):
+    """"""
+
+    kf = KFold(n_splits=5)
+
+
+def svm_pipeline(X_train: np.array, y_train: np.array,
+                 X_test: np.array, y_test: np.array) -> float:
+    """Impute missing data, scale, and fit SVM model.
+
+    Returns:
+        score: the score of X_test, y_test
+    """
+
+    pipe = make_pipeline(
+        IterativeImputer(random_state=0),
+        preprocessing.StandardScaler(),
+        SVC(gamma='auto')
+    )
+    pipe.fit(X_train, y_train)
+    return pipe.score(X_test, y_test)
+
+
 def main():
+    # Specify file path
     fp = 'cumulative_2021.12.05_03.56.43.csv'
+
+    # Import data
     raw = import_data(fp)
+
+    # Basic data clean-up
     df = basic_data_clean_up(raw)
-    first_impression(df)
+
+    # Train-test split
+    X_train, X_test, y_train, y_test = split_df(df)  # noqa
+
+    # Missing data imputatin, scaling & SVM
+    score = svm_pipeline(X_train, y_train, X_test, y_test)
+    print(score)
+    
+    return df
 
 
 if __name__ == '__main__':
-    main()
+    df = main()
