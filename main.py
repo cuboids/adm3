@@ -63,7 +63,7 @@ RFC_GRID = {
     'randomforestclassifier__bootstrap': [True, False]}
 
 XGB_GRID = {
-    # TODO: add rest of XGB grid
+    # ... TODO: add rest of XGB grid
     'xgbclassifier__n_estimators': list(range(200, 2200, 200))}
 
 
@@ -171,7 +171,6 @@ def cv_grid_search(X_train: np.array, y_train: np.array,
     estimator = DecisionTreeRegressor(random_state=0)  # Estimator used for imputation
     cachedir = mkdtemp()  # noqa; we cache transformers to avoid repeated computation
 
-    # Make pipeline
     pipe = make_pipeline(
         IterativeImputer(random_state=0, estimator=estimator),
         preprocessing.PowerTransformer(),
@@ -179,12 +178,10 @@ def cv_grid_search(X_train: np.array, y_train: np.array,
         memory=cachedir,
         verbose=test)
 
-    print(pipe.get_params().keys())
-
+    # Cross validation settings
     cv = KFold(N_FOLDS, shuffle=True, random_state=0)
 
     if method == 'svm':
-        # Grid search for SVM
         search = GridSearchCV(
             estimator=pipe,
             param_grid=SVM_TEST_GRID if test else SVM_GRID,
@@ -193,7 +190,6 @@ def cv_grid_search(X_train: np.array, y_train: np.array,
             verbose=test)
 
     else:
-        # Random Grid search for SVM
         search = RandomizedSearchCV(
             estimator=pipe,
             param_distributions=RFC_GRID if method == 'rfc' else XGB_GRID,
@@ -203,11 +199,11 @@ def cv_grid_search(X_train: np.array, y_train: np.array,
             verbose=test,
             random_state=0)
 
-    search.fit(X_train, y_train)  # noqa
+    search.fit(X_train, y_train)  
+    rmtree(cachedir)
     if test:
         print(f'Best parameters (CV score={search.best_score_:.3f})')
         print(search.best_params_)
-    rmtree(cachedir)
 
     return search
 
@@ -230,7 +226,7 @@ def main():
     X_train, X_test, y_train, y_test = split_df(df)  # noqa
 
     # Missing data imputation, scaling & SVM
-    cv_grid_search(X_train, y_train, method='xgb')
+    cv_grid_search(X_train, y_train, method='svm')
 
     return df
 
