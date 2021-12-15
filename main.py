@@ -1,33 +1,75 @@
-"""
-Steps:
-* (1) csv -> pandas dataframe
-* (2) basic data cleanup
-* (3) target = "disposition using kepler data"
-  code target as 0/1
-* (4) Calibration/validation split
-* (5) Scaling?
-* (6) Train/test split of calibration set
-* (7) SVM
-* (8) Random Forests
-* (9) XGBoost
-* (10) Dimension reduction and data viz
-"""
+"""Finding exoplanets in the Kepler data!"""
 
-from typing import Optional
+from collections import OrderedDict
+from shutil import rmtree
+from tempfile import mkdtemp
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd; pd.set_option('display.max_columns', None)
 import matplotlib.pyplot as plt
 import seaborn as sns
+import xgboost as xgb
+
 from sklearn import preprocessing
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer
-from sklearn.model_selection import KFold
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import ExtraTreesRegressor, RandomForestClassifier
+from sklearn.experimental import enable_iterative_imputer  # noqa
+from sklearn.impute import IterativeImputer, SimpleImputer  # noqa
+from sklearn.model_selection import cross_val_score, GridSearchCV, KFold, train_test_split, RandomizedSearchCV
 from sklearn.pipeline import make_pipeline
 from sklearn.svm import SVC
-import xgboost
+from sklearn.tree import DecisionTreeRegressor
+
+
+N_FOLDS = 5  # Number of folds to use in cross-validation
+
+METHODS = {
+    'svm': SVC(random_state=0),
+    'rfc': RandomForestClassifier(random_state=0),
+    'xgb': xgb.XGBClassifier(random_state=0)}
+
+SVM_GRID = {
+    # ...
+    'svc__kernel': ['rbf', 'poly', 'sigmoid'],
+
+    # ...
+    'svc__C': [.01, .1, 1, 10, 100],
+
+    # ...
+    'svc__gamma': [.001, .01, .1, 1]}
+
+SVM_TEST_GRID = {
+    'svc__kernel': ['rbf', 'poly'],
+    'svc__C': [10, 100],
+    'svc__gamma': [.001, .01]}
+
+RFC_GRID = {
+    # Number of trees in the random forest
+    'randomforestclassifier__n_estimators': list(range(200, 2200, 200)),
+
+    # Number of features to consider at every split
+    'randomforestclassifier__max_features': ['auto', 'sqrt'],
+
+    # Maximum number of levels in each tree
+    'randomforestclassifier__max_depth': list(range(10, 110, 10)) + [None],
+
+    # Minimum number of samples to split a node
+    'randomforestclassifier__min_samples_split': [2, 5, 10],
+
+    # Minimum number of samples required at each leaf node
+    'randomforestclassifier__min_samples_leaf': [1, 2, 4],
+
+    # Method of selecting samples for training each tree
+    'randomforestclassifier__bootstrap': [True, False]}
+
+XGB_GRID = {
+    # ...
+    'xgbclassifier__n_estimators': list(range(200, 2200, 200)),
+    
+    # ...
+    # TODO: add rest of XGB grid
+
+}
 
 
 def import_data(fp: str) -> pd.DataFrame:
@@ -53,10 +95,10 @@ def first_impression(df: pd.DataFrame) -> None:
 
 
 def basic_data_clean_up(raw: pd.DataFrame, cols: Optional[list[str]] = None) -> pd.DataFrame:
-    """Select columns and code target variable as y
+    """Select columns for the feature matrix and code target variable as y
 
     Args:
-        raw: raw dataframe with kepler data
+        raw: kepler data
         cols: optional list of columns to be included
     """
 
@@ -86,9 +128,10 @@ def basic_data_clean_up(raw: pd.DataFrame, cols: Optional[list[str]] = None) -> 
     # Check that `cols` includes the planet name and disposition
     assert 'kepoi_name' in cols and 'koi_disposition' in cols
 
+    # Only preserve the columns in cols
     df = raw[cols]
 
-    # Make sure that planet names are unique
+    # Planet names need to be unique
     assert len(df['kepoi_name']) == len(set(df['kepoi_name']))
 
     # Set planet name as row index
@@ -97,7 +140,7 @@ def basic_data_clean_up(raw: pd.DataFrame, cols: Optional[list[str]] = None) -> 
     # Filter out exoplanet candidates
     df = df[df['koi_disposition'] != 'CANDIDATE']
 
-    # Ensure a planet is either CONFIRMED or FALSE POSITIVE
+    # Ensure a planet is either CONFIRMED or FALSE POSITIVE, not a CANDIDATE
     assert len(set(df['koi_disposition'])) == 2
 
     # Code the target variable as binary
@@ -107,34 +150,75 @@ def basic_data_clean_up(raw: pd.DataFrame, cols: Optional[list[str]] = None) -> 
     return df
 
 
-def split_df(df: pd.DataFrame, test_size=.3) -> tuple[pd.DataFrame]:
-    """"""
+def split_df(df: pd.DataFrame, test_size: float = .3) -> tuple[np.array]:
+    """Split dataframe into train and test set
+
+    Args:
+        test_size: relative size of the test set"""
 
     X, y = df.drop('y', axis=1).to_numpy(), df['y'].to_numpy()
     return train_test_split(X, y, test_size=test_size, random_state=0)
 
 
-def split_into_folds(df: pd.DataFrame):
-    """"""
+def cv_grid_search(X_train: np.array, y_train: np.array,
+                   method: str, test: bool = True) -> Union[GridSearchCV, RandomizedSearchCV]:
+    """Use cross-validated grid search to find best-fitting parameters
 
-    kf = KFold(n_splits=5)
+    Args:
+        X_train: input variables
+        y_train: output variables
+        method: classification methods to use ('svm' or 'rfc')
+        test: use reduced model for testing purposes
 
-
-def svm_pipeline(X_train: np.array, y_train: np.array,
-                 X_test: np.array, y_test: np.array) -> float:
-    """Impute missing data, scale, and fit SVM model.
-
-    Returns:
-        score: the score of X_test, y_test
     """
 
+    assert method in ['svm', 'rfc', 'xgb']
+
+    estimator = DecisionTreeRegressor(random_state=0)  # Estimator used for imputation
+    cachedir = mkdtemp()  # noqa; we cache transformers to avoid repeated computation
+
+    # Make pipeline
     pipe = make_pipeline(
-        IterativeImputer(random_state=0),
-        preprocessing.StandardScaler(),
-        SVC(gamma='auto')
+        IterativeImputer(random_state=0, estimator=estimator),
+        preprocessing.PowerTransformer(),
+        METHODS[method],
+        memory=cachedir,
+        verbose=test
     )
-    pipe.fit(X_train, y_train)
-    return pipe.score(X_test, y_test)
+
+    print(pipe.get_params().keys())
+
+    cv = KFold(N_FOLDS, shuffle=True, random_state=0)
+    
+    if method == 'svm':
+        # Grid search for SVM
+        search = GridSearchCV(
+            estimator=pipe,
+            param_grid=SVM_TEST_GRID if test else SVM_GRID,
+            n_jobs=-1,
+            cv=cv,
+            verbose=test
+        )
+
+    else:
+        # Random Grid search for SVM
+        search = RandomizedSearchCV(
+            estimator=pipe,
+            param_distributions=RFC_GRID if method == 'rfc' else XGB_GRID,
+            n_iter=10 if test else 100,
+            n_jobs=-1,
+            cv=cv,
+            verbose=test,
+            random_state=0
+        )
+
+    search.fit(X_train, y_train)  # noqa
+    if test:
+        print(f'Best parameters (CV score={search.best_score_:.3f})')
+        print(search.best_params_)
+    rmtree(cachedir)
+
+    return search
 
 
 def main():
@@ -147,13 +231,16 @@ def main():
     # Basic data clean-up
     df = basic_data_clean_up(raw)
 
+    if not ...:
+        #  Descriptive stats
+        first_impression(df)
+
     # Train-test split
     X_train, X_test, y_train, y_test = split_df(df)  # noqa
 
-    # Missing data imputatin, scaling & SVM
-    score = svm_pipeline(X_train, y_train, X_test, y_test)
-    print(score)
-    
+    # Missing data imputation, scaling & SVM
+    cv_grid_search(X_train, y_train, method='xgb')
+
     return df
 
 
