@@ -63,13 +63,8 @@ RFC_GRID = {
     'randomforestclassifier__bootstrap': [True, False]}
 
 XGB_GRID = {
-    # ...
-    'xgbclassifier__n_estimators': list(range(200, 2200, 200)),
-    
-    # ...
     # TODO: add rest of XGB grid
-
-}
+    'xgbclassifier__n_estimators': list(range(200, 2200, 200))}
 
 
 def import_data(fp: str) -> pd.DataFrame:
@@ -122,8 +117,7 @@ def basic_data_clean_up(raw: pd.DataFrame, cols: Optional[list[str]] = None) -> 
         'koi_srad',  # Stellar Radius [Solar radii]
         'ra',  # RA [decimal degrees]
         'dec',  # Dec [decimal degrees]
-        'koi_kepmag',  # Kepler-band [mag]
-    ]
+        'koi_kepmag']  # Kepler-band [mag]
 
     # Check that `cols` includes the planet name and disposition
     assert 'kepoi_name' in cols and 'koi_disposition' in cols
@@ -183,13 +177,12 @@ def cv_grid_search(X_train: np.array, y_train: np.array,
         preprocessing.PowerTransformer(),
         METHODS[method],
         memory=cachedir,
-        verbose=test
-    )
+        verbose=test)
 
     print(pipe.get_params().keys())
 
     cv = KFold(N_FOLDS, shuffle=True, random_state=0)
-    
+
     if method == 'svm':
         # Grid search for SVM
         search = GridSearchCV(
@@ -197,8 +190,7 @@ def cv_grid_search(X_train: np.array, y_train: np.array,
             param_grid=SVM_TEST_GRID if test else SVM_GRID,
             n_jobs=-1,
             cv=cv,
-            verbose=test
-        )
+            verbose=test)
 
     else:
         # Random Grid search for SVM
@@ -209,8 +201,7 @@ def cv_grid_search(X_train: np.array, y_train: np.array,
             n_jobs=-1,
             cv=cv,
             verbose=test,
-            random_state=0
-        )
+            random_state=0)
 
     search.fit(X_train, y_train)  # noqa
     if test:
